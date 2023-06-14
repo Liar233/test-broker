@@ -1,6 +1,7 @@
 package main
 
 import (
+	"container/list"
 	"context"
 	"errors"
 	"fmt"
@@ -112,20 +113,22 @@ func handleHttp(w http.ResponseWriter, r *http.Request) {
 }
 
 type Topic struct {
-	messages  []string
-	observers []chan string
+	messages  *list.List
+	observers *list.List
 	sync.Mutex
 }
 
 func (t *Topic) Get(ctx context.Context) (string, error) {
 	t.Lock()
 
-	if len(t.messages) > 0 {
+	if t.messages.Len() > 0 {
 
-		msg := t.messages[0]
+		msgEl := t.messages.Front()
 
-		t.messages = t.messages[1:]
+		t.messages.Remove(msgEl)
 		t.Unlock()
+
+		msg := msgEl.Value.(string)
 
 		return msg, nil
 	}
@@ -136,7 +139,7 @@ func (t *Topic) Get(ctx context.Context) (string, error) {
 
 	req := make(chan string)
 
-	t.observers = append(t.observers, req)
+	t.observers.PushBack(req)
 	t.Unlock()
 
 	for {
@@ -154,24 +157,25 @@ func (t *Topic) Set(msg string) {
 	t.Lock()
 	defer t.Unlock()
 
-	if len(t.observers) > 0 {
-		for idx, observer := range t.observers {
-			if observer != nil {
+	if t.observers.Len() > 0 {
+		for el := t.observers.Front(); el != nil; el = el.Next() {
+			if observer := el.Value.(chan string); observer != nil {
 				observer <- msg
-				t.observers = t.observers[idx+1:]
+
+				_ = t.observers.Remove(el)
 
 				return
 			}
 		}
 	}
 
-	t.messages = append(t.messages, msg)
+	t.messages.PushBack(msg)
 }
 
 func NewTopic() *Topic {
 
 	return &Topic{
-		messages:  make([]string, 0),
-		observers: make([]chan string, 0),
+		messages:  list.New(), // list of str messages
+		observers: list.New(), // list of request chan string
 	}
 }

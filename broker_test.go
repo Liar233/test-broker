@@ -19,12 +19,12 @@ func TestTopicSync(t *testing.T) {
 		t.Fatal("failed sync get message")
 	}
 
-	if len(queue.messages) != 0 {
+	if queue.messages.Len() != 0 {
 
 		t.Fatal("failed messages count")
 	}
 
-	if len(queue.observers) != 0 {
+	if queue.observers.Len() != 0 {
 
 		t.Fatal("failed observers count")
 	}
@@ -100,11 +100,10 @@ func TestConcurrencyWriting(t *testing.T) {
 
 			defer cancel()
 
-			msg, err := queue.Get(ctx)
+			_, err := queue.Get(ctx)
 
 			if err != nil {
 
-				println("Not found")
 				return
 			}
 
@@ -112,20 +111,15 @@ func TestConcurrencyWriting(t *testing.T) {
 				select {
 				default:
 				case <-ctx.Done():
-					println("Timeout")
 					return
 				}
 			}
-
-			println(msg)
 		}()
 	}
 
 	<-time.After(time.Second)
 
-	println("Add msg")
 	queue.Set("msg1")
-	println("Msg added")
 
 	wg.Wait()
 }
